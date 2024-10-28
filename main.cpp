@@ -16,6 +16,7 @@
 #include <fstream>
 #include <numbers>
 #include <sstream>
+#include <random>
 #include "externals/imgui/imgui.h"
 #include "externals/imgui/imgui_impl_dx12.h"
 #include "externals/imgui/imgui_impl_win32.h"
@@ -96,6 +97,24 @@ struct ModelData {
 	std::vector<VertexData> vertices;
 	MaterialData material;
 };
+
+// スカラーとの乗算のオーバーロード
+Vector3 operator*(const Vector3& vec, float scalar) {
+	return { vec.x * scalar, vec.y * scalar, vec.z * scalar };
+}
+
+// Vector3同士の乗算（必要であれば定義）
+Vector3 operator*(const Vector3& vec1, const Vector3& vec2) {
+	return { vec1.x * vec2.x, vec1.y * vec2.y, vec1.z * vec2.z };
+}
+
+// += 演算子のオーバーロード
+Vector3& operator+=(Vector3& vec1, const Vector3& vec2) {
+	vec1.x += vec2.x;
+	vec1.y += vec2.y;
+	vec1.z += vec2.z;
+	return vec1;
+}
 
 Matrix4x4 Inverse(const Matrix4x4& m) {
 	Matrix4x4 result;
@@ -730,6 +749,12 @@ Transform uvTransformSprite{
 bool useMonsterBall = true;
 //描画させる数
 int instanceCount = 10;
+//Δtを定義
+const float kDeltaTime = 1.0f / 60.0f;
+
+//乱数生成器の初期化
+std::random_device seedGenerator;
+std::mt19937 randomEngine(seedGenerator());
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
@@ -1347,14 +1372,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	D3D12_GPU_DESCRIPTOR_HANDLE instancingSrvHandleGPU = GetGPUDescriptorHandle(srvDescriptorHeap.Get(), descriptorSizeSRV, 3);
 	device->CreateShaderResourceView(instancingResource.Get(), &instancingSrvDesc, instancingSrvHandleCPU);
 	//Instancing用のTransform
-	Transform instancingTransforms[kNumInstance];
+	Particle instancingParticles[kNumInstance];
 	for (uint32_t index = 0; index < kNumInstance; ++index) {
-		instancingTransforms[index].scale = { 1.0f,1.0f,1.0f };
-		instancingTransforms[index].rotate = { 0.0f,std::numbers::pi_v<float>,0.0f };
-		instancingTransforms[index].translate = { index * 0.1f,index * 0.1f,index * 0.1f };
+		std::uniform_real_distribution<float> distribution(-1.0f, 1.0f);
+		instancingParticles[index].transform.scale = { 1.0f,1.0f,1.0f };
+		instancingParticles[index].transform.rotate = { 0.0f,std::numbers::pi_v<float>,0.0f };
+		//位置と速度を[-1,1]でランダムに初期化
+		instancingParticles[index].transform.translate = { distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
+		instancingParticles[index].velocity = { distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
+
 	}
 	for (uint32_t index = 0; index < kNumInstance; ++index) {
-		Matrix4x4 worldMatrix = MakeAffineMatrix(instancingTransforms[index].scale, instancingTransforms[index].rotate, instancingTransforms[index].translate);
+		Matrix4x4 worldMatrix = MakeAffineMatrix(instancingParticles[index].transform.scale, instancingParticles[index].transform.rotate, instancingParticles[index].transform.translate);
 		Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
 		Matrix4x4 viewMatrix = Inverse(cameraMatrix);
 		Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
@@ -1616,13 +1645,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 			for (uint32_t index = 0; index < kNumInstance; ++index) {
-				Matrix4x4 worldMatrix = MakeAffineMatrix(instancingTransforms[index].scale, instancingTransforms[index].rotate, instancingTransforms[index].translate);
+				Matrix4x4 worldMatrix = MakeAffineMatrix(instancingParticles[index].transform.scale, instancingParticles[index].transform.rotate, instancingParticles[index].transform.translate);
 				Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
 				Matrix4x4 viewMatrix = Inverse(cameraMatrix);
 				Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
 				Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
 				instancingData[index].wvp = worldViewProjectionMatrix;
 				instancingData[index].World = worldMatrix;
+				//速度を反映
+				instancingParticles[index].transform.translate += instancingParticles[index].velocity * kDeltaTime;
 			}
 
 		}
