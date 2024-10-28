@@ -13,7 +13,8 @@ struct VertexShaderInput {
 	float3 normal : NORMAL0;
 };
 
-VertexShaderOutput main(VertexShaderInput input,int instanceId : SV_InstanceID) {
+VertexShaderOutput main(VertexShaderInput input,uint instanceId : SV_InstanceID) {
+
 	VertexShaderOutput output;
 	output.position = mul(input.position, gTransformationMatrices[instanceId].wvp);
 	output.texcoord = input.texcoord;
