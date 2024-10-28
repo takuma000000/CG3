@@ -59,6 +59,11 @@ struct Transform {
 	Vector3 translate;
 };
 
+struct Particle {
+	Transform transform;
+	Vector3 velocity;
+};
+
 struct VertexData {
 	Vector4	position;
 	Vector2 texcoord;
