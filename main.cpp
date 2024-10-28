@@ -63,6 +63,7 @@ struct Transform {
 struct Particle {
 	Transform transform;
 	Vector3 velocity;
+	Vector4 color;
 };
 
 struct VertexData {
@@ -96,6 +97,12 @@ struct MaterialData {
 struct ModelData {
 	std::vector<VertexData> vertices;
 	MaterialData material;
+};
+
+struct ParticleForGPU {
+	Matrix4x4 wvp;
+	Matrix4x4 World;
+	Vector4 color;
 };
 
 // スカラーとの乗算のオーバーロード
@@ -735,6 +742,20 @@ ModelData LoadObjFile(const std::string& directoryPath, const std::string& filen
 	return modelData;
 }
 
+//生成関数
+Particle MakeNewParticle(std::mt19937& randomEngine) {
+	std::uniform_real_distribution<float> distribution(-1.0f, 1.0f);
+	std::uniform_real_distribution<float> distColor(0.0f, 1.0f);
+	Particle particle;
+	particle.transform.scale = { 1.0f,1.0f,1.0f };
+	particle.transform.rotate = { 0.0f,std::numbers::pi_v<float>,0.0f };
+	//位置と速度を[-1,1]でランダムに初期化
+	particle.transform.translate = { distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
+	particle.velocity = { distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
+	particle.color = { distColor(randomEngine),distColor(randomEngine),distColor(randomEngine),1.0f };
+	return particle;
+}
+
 //Transform変数を作る
 Transform transform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
 Transform cameraTransform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f} ,{0.0f,0.0f,-10.0f} };
@@ -1350,14 +1371,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//Instancing用のResources
 	const uint32_t kNumInstance = 10;	//インスタンス数
 	//Instancing用のTransformationMatrixResourcesを作る
-	Microsoft::WRL::ComPtr<ID3D12Resource> instancingResource = CreateBufferResource(device.Get(), sizeof(TransformationMatrix) * kNumInstance);
+	Microsoft::WRL::ComPtr<ID3D12Resource> instancingResource = CreateBufferResource(device.Get(), sizeof(ParticleForGPU) * kNumInstance);
 	//書き込むためのアドレスを取得
-	TransformationMatrix* instancingData = nullptr;
+	ParticleForGPU* instancingData = nullptr;
 	instancingResource->Map(0, nullptr, reinterpret_cast<void**>(&instancingData));
 	//単位行列を書き込んでおく
 	for (uint32_t index = 0; index < kNumInstance; ++index) {
 		instancingData[index].wvp = MakeIdentity4x4();
 		instancingData[index].World = MakeIdentity4x4();
+		instancingData[index].color = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
 	}
 	//Instancing用のSRV
 	D3D12_SHADER_RESOURCE_VIEW_DESC instancingSrvDesc{};
@@ -1367,29 +1389,25 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	instancingSrvDesc.Buffer.FirstElement = 0;
 	instancingSrvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 	instancingSrvDesc.Buffer.NumElements = kNumInstance;
-	instancingSrvDesc.Buffer.StructureByteStride = sizeof(TransformationMatrix);
+	instancingSrvDesc.Buffer.StructureByteStride = sizeof(ParticleForGPU);
 	D3D12_CPU_DESCRIPTOR_HANDLE instancingSrvHandleCPU = GetCPUDescriptorHandle(srvDescriptorHeap.Get(), descriptorSizeSRV, 3);
 	D3D12_GPU_DESCRIPTOR_HANDLE instancingSrvHandleGPU = GetGPUDescriptorHandle(srvDescriptorHeap.Get(), descriptorSizeSRV, 3);
 	device->CreateShaderResourceView(instancingResource.Get(), &instancingSrvDesc, instancingSrvHandleCPU);
 	//Instancing用のTransform
-	Particle instancingParticles[kNumInstance];
-	for (uint32_t index = 0; index < kNumInstance; ++index) {
-		std::uniform_real_distribution<float> distribution(-1.0f, 1.0f);
-		instancingParticles[index].transform.scale = { 1.0f,1.0f,1.0f };
-		instancingParticles[index].transform.rotate = { 0.0f,std::numbers::pi_v<float>,0.0f };
-		//位置と速度を[-1,1]でランダムに初期化
-		instancingParticles[index].transform.translate = { distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
-		instancingParticles[index].velocity = { distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
+	Particle particles[kNumInstance];
 
+	for (uint32_t index = 0; index < kNumInstance; ++index) {
+		particles[index] = MakeNewParticle(randomEngine);
 	}
 	for (uint32_t index = 0; index < kNumInstance; ++index) {
-		Matrix4x4 worldMatrix = MakeAffineMatrix(instancingParticles[index].transform.scale, instancingParticles[index].transform.rotate, instancingParticles[index].transform.translate);
+		Matrix4x4 worldMatrix = MakeAffineMatrix(particles[index].transform.scale, particles[index].transform.rotate, particles[index].transform.translate);
 		Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
 		Matrix4x4 viewMatrix = Inverse(cameraMatrix);
 		Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
 		Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
 		instancingData[index].wvp = worldViewProjectionMatrix;
 		instancingData[index].World = worldMatrix;
+		instancingData[index].color = particles[index].color;
 	}
 
 	//出力ウィンドウへの文字出力ループを抜ける
@@ -1645,15 +1663,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 			for (uint32_t index = 0; index < kNumInstance; ++index) {
-				Matrix4x4 worldMatrix = MakeAffineMatrix(instancingParticles[index].transform.scale, instancingParticles[index].transform.rotate, instancingParticles[index].transform.translate);
+				Matrix4x4 worldMatrix = MakeAffineMatrix(particles[index].transform.scale, particles[index].transform.rotate, particles[index].transform.translate);
 				Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
 				Matrix4x4 viewMatrix = Inverse(cameraMatrix);
 				Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
 				Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
 				instancingData[index].wvp = worldViewProjectionMatrix;
 				instancingData[index].World = worldMatrix;
+				//instancingData[index].color = particles[index].color;
 				//速度を反映
-				instancingParticles[index].transform.translate += instancingParticles[index].velocity * kDeltaTime;
+				particles[index].transform.translate += particles[index].velocity * kDeltaTime;
 			}
 
 		}
