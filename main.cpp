@@ -14,6 +14,7 @@
 #include <assert.h>
 #include <cmath>
 #include <fstream>
+#include <numbers>
 #include <sstream>
 #include "externals/imgui/imgui.h"
 #include "externals/imgui/imgui_impl_dx12.h"
@@ -1344,12 +1345,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Transform instancingTransforms[kNumInstance];
 	for (uint32_t index = 0; index < kNumInstance; ++index) {
 		instancingTransforms[index].scale = { 1.0f,1.0f,1.0f };
-		instancingTransforms[index].rotate = { 0.0f,0.0f,0.0f };
+		instancingTransforms[index].rotate = { 0.0f,std::numbers::pi_v<float>,0.0f };
 		instancingTransforms[index].translate = { index * 0.1f,index * 0.1f,index * 0.1f };
 	}
 	for (uint32_t index = 0; index < kNumInstance; ++index) {
 		Matrix4x4 worldMatrix = MakeAffineMatrix(instancingTransforms[index].scale, instancingTransforms[index].rotate, instancingTransforms[index].translate);
-		Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, worldViewProjectionMatrix);
+		Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
+		Matrix4x4 viewMatrix = Inverse(cameraMatrix);
+		Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
+		Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
 		instancingData[index].wvp = worldViewProjectionMatrix;
 		instancingData[index].World = worldMatrix;
 	}
@@ -1604,6 +1608,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			Matrix4x4 worldViewProjectionMatrixSprite = Multiply(worldMatrixSprite, Multiply(viewMatrixSprite, projectionMatrixSprite));
 
 			transformationMatrixDataSprite->wvp = worldViewProjectionMatrixSprite;
+
+
+			for (uint32_t index = 0; index < kNumInstance; ++index) {
+				Matrix4x4 worldMatrix = MakeAffineMatrix(instancingTransforms[index].scale, instancingTransforms[index].rotate, instancingTransforms[index].translate);
+				Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
+				Matrix4x4 viewMatrix = Inverse(cameraMatrix);
+				Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
+				Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
+				instancingData[index].wvp = worldViewProjectionMatrix;
+				instancingData[index].World = worldMatrix;
+			}
 
 		}
 
