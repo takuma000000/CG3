@@ -781,12 +781,11 @@ Particle MakeNewParticle(std::mt19937& randomEngine, const Vector3& translate) {
 	//一定時間で消えるようにする
 	std::uniform_real_distribution<float> distTime(1.0f, 3.0f);
 	Particle particle;
-	Vector3 randomTranslate{ distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
-	particle.transform.translate = translate + randomTranslate;
 	particle.transform.scale = { 1.0f,1.0f,1.0f };
 	particle.transform.rotate = { 0.0f,std::numbers::pi_v<float>,0.0f };
 	//位置と速度を[-1,1]でランダムに初期化
-	particle.transform.translate = { distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
+	Vector3 randomTranslate{ distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
+	particle.transform.translate = translate + randomTranslate;
 	particle.velocity = { distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
 	particle.color = { distColor(randomEngine),distColor(randomEngine),distColor(randomEngine),1.0f };
 	particle.lifeTime = distTime(randomEngine);
