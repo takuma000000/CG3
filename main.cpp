@@ -119,9 +119,15 @@ Vector3 operator*(const Vector3& vec, float scalar) {
 	return { vec.x * scalar, vec.y * scalar, vec.z * scalar };
 }
 
+
+
 // Vector3同士の乗算（必要であれば定義）
 Vector3 operator*(const Vector3& vec1, const Vector3& vec2) {
 	return { vec1.x * vec2.x, vec1.y * vec2.y, vec1.z * vec2.z };
+}
+
+Vector3 operator+(const Vector3& vec1, const Vector3& vec2) {
+	return { vec1.x + vec2.x, vec1.y + vec2.y, vec1.z + vec2.z };
 }
 
 // += 演算子のオーバーロード
@@ -769,12 +775,14 @@ ModelData LoadObjFile(const std::string& directoryPath, const std::string& filen
 }
 
 //生成関数
-Particle MakeNewParticle(std::mt19937& randomEngine) {
+Particle MakeNewParticle(std::mt19937& randomEngine, const Vector3& translate) {
 	std::uniform_real_distribution<float> distribution(-1.0f, 1.0f);
 	std::uniform_real_distribution<float> distColor(0.0f, 1.0f);
 	//一定時間で消えるようにする
 	std::uniform_real_distribution<float> distTime(1.0f, 3.0f);
 	Particle particle;
+	Vector3 randomTranslate{ distribution(randomEngine),distribution(randomEngine),distribution(randomEngine) };
+	particle.transform.translate = translate + randomTranslate;
 	particle.transform.scale = { 1.0f,1.0f,1.0f };
 	particle.transform.rotate = { 0.0f,std::numbers::pi_v<float>,0.0f };
 	//位置と速度を[-1,1]でランダムに初期化
@@ -789,7 +797,7 @@ Particle MakeNewParticle(std::mt19937& randomEngine) {
 std::list<Particle> Emit(const Emitter& emitter, std::mt19937& randomEngine) {
 	std::list<Particle> particles;
 	for (uint32_t count = 0; count < emitter.count; ++count) {
-		particles.push_back(MakeNewParticle(randomEngine));
+		particles.push_back(MakeNewParticle(randomEngine, emitter.transform.translate));
 	}
 	return particles;
 }
@@ -1440,6 +1448,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	D3D12_CPU_DESCRIPTOR_HANDLE instancingSrvHandleCPU = GetCPUDescriptorHandle(srvDescriptorHeap.Get(), descriptorSizeSRV, 3);
 	D3D12_GPU_DESCRIPTOR_HANDLE instancingSrvHandleGPU = GetGPUDescriptorHandle(srvDescriptorHeap.Get(), descriptorSizeSRV, 3);
 	device->CreateShaderResourceView(instancingResource.Get(), &instancingSrvDesc, instancingSrvHandleCPU);
+
 	//Instancing用のTransform
 	std::list<Particle> particles;
 
@@ -1447,9 +1456,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	emitter.count = 3;
 	emitter.frequency = 0.5f;
 	emitter.frequencyTime = 0.0f;
+	emitter.transform.translate = { 0.0f,0.0f,0.0f };
+	emitter.transform.rotate = { 0.0f,0.0f,0.0f };
+	emitter.transform.scale = { 1.0f,1.0f,1.0f };
 
 	for (std::list<Particle>::iterator particleIterator = particles.begin(); particleIterator != particles.end(); ++particleIterator) {
-		(*particleIterator) = MakeNewParticle(randomEngine);
+		(*particleIterator) = MakeNewParticle(randomEngine, emitter.transform.translate);	
 		(*particleIterator).color = (*particleIterator).color;
 	}
 
@@ -1488,9 +1500,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			ImGui::Begin("CG2_Test03_ImGui");
 
+
 			if (ImGui::Button("Add Particle")) {
 				particles.splice(particles.end(), Emit(emitter, randomEngine));
 			}
+
+			ImGui::DragFloat3("EmitterTranslate", &emitter.transform.translate.x, 0.01f, -100.0f, 100.0f);
 
 			if (ImGui::CollapsingHeader("Camera")) {
 
@@ -1621,6 +1636,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 				billboardMatrix.m[3][2] = 0.0f;
 			}
 
+			emitter.frequencyTime += kDeltaTime;//時刻を進める
+			if (emitter.frequency <= emitter.frequencyTime) {
+				particles.splice(particles.end(), Emit(emitter, randomEngine));
+				emitter.frequencyTime -= emitter.frequency;
+			}
+
 			uint32_t numInstance = 0;//描画すべきインスタンス数
 			for (std::list<Particle>::iterator particleIterator = particles.begin(); particleIterator != particles.end();) {
 				if ((*particleIterator).lifeTime <= (*particleIterator).currentTime) {//生存期間を過ぎていたら更新せず描画対象にしない
@@ -1646,12 +1667,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 					++numInstance;//生きているParticleの数を1つカウントする
 				}
 				++particleIterator;
-			}
-
-			emitter.frequencyTime += kDeltaTime;//時刻を進める
-			if (emitter.frequency <= emitter.frequencyTime) {
-				particles.splice(particles.end(), Emit(emitter, randomEngine));
-				emitter.frequencyTime -= emitter.frequency;
 			}
 
 
