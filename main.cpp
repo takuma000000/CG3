@@ -1426,10 +1426,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	D3D12_GPU_DESCRIPTOR_HANDLE instancingSrvHandleGPU = GetGPUDescriptorHandle(srvDescriptorHeap.Get(), descriptorSizeSRV, 3);
 	device->CreateShaderResourceView(instancingResource.Get(), &instancingSrvDesc, instancingSrvHandleCPU);
 	//Instancing用のTransform
-	Particle particles[kNumMaxInstance];
-	for (uint32_t index = 0; index < kNumMaxInstance; ++index) {
-		particles[index] = MakeNewParticle(randomEngine);
-		instancingData[index].color = particles[index].color;
+	std::list<Particle> particles;
+
+	for (std::list<Particle>::iterator particleIterator = particles.begin(); particleIterator != particles.end(); ++particleIterator) {
+		(*particleIterator) = MakeNewParticle(randomEngine);
+		(*particleIterator).color = (*particleIterator).color;
 	}
 
 	Matrix4x4 backToFrontMatrix = MakeRotateYMatrix(std::numbers::pi_v<float>);
@@ -1466,6 +1467,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			ImGui::NewFrame();
 
 			ImGui::Begin("CG2_Test03_ImGui");
+
+			if (ImGui::Button("Add Particle")) {
+				particles.push_back(MakeNewParticle(randomEngine));
+				particles.push_back(MakeNewParticle(randomEngine));
+				particles.push_back(MakeNewParticle(randomEngine));
+			}
 
 			if (ImGui::CollapsingHeader("Camera")) {
 
@@ -1597,25 +1604,30 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			}
 
 			uint32_t numInstance = 0;//描画すべきインスタンス数
-			for (uint32_t index = 0; index < kNumMaxInstance; ++index) {
-				if (particles[index].lifeTime <= particles[index].currentTime) {//生存期間を過ぎていたら更新せず描画対象にしない
+			for (std::list<Particle>::iterator particleIterator = particles.begin(); particleIterator != particles.end(); ++particleIterator) {
+				if ((*particleIterator).lifeTime <= (*particleIterator).currentTime) {//生存期間を過ぎていたら更新せず描画対象にしない
+					particleIterator = particles.erase(particleIterator);
 					continue;
 				}
-				Matrix4x4 scaleMatrix = MakeScaleMatrix(particles[index].transform.scale);
-				Matrix4x4 translateMatrix = MakeTranslateMatrix(particles[index].transform.translate);
+				Matrix4x4 scaleMatrix = MakeScaleMatrix((*particleIterator).transform.scale);
+				Matrix4x4 translateMatrix = MakeTranslateMatrix((*particleIterator).transform.translate);
 				Matrix4x4 worldMatrix = scaleMatrix * billboardMatrix * translateMatrix;
 				Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
 				Matrix4x4 viewMatrix = Inverse(cameraMatrix);
 				Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
 				Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
-				particles[index].transform.translate += particles[index].velocity * kDeltaTime;
-				particles[index].currentTime += kDeltaTime;//経過時間を足す
-				instancingData[index].wvp = worldViewProjectionMatrix;
-				instancingData[index].World = worldMatrix;
-				//instancingData[index].color = particles[index].color;
-				float alpha = 1.0f - (particles[index].currentTime / particles[index].lifeTime);
-				instancingData[numInstance].color.w = alpha;
-				++numInstance;//生きているParticleの数を1つカウントする
+				if (numInstance < kNumMaxInstance) {
+					(*particleIterator).transform.translate += (*particleIterator).velocity * kDeltaTime;
+					(*particleIterator).currentTime += kDeltaTime;//経過時間を足す
+					instancingData[index].wvp = worldViewProjectionMatrix;
+					instancingData[index].World = worldMatrix;
+					//instancingData[index].color = particles[index].color;
+					float alpha = 1.0f - (particles[index].currentTime / particles[index].lifeTime);
+					instancingData[numInstance].color.w = alpha;
+					instancingData[numInstance].wvp = worldViewProjectionMatrix;
+					++numInstance;//生きているParticleの数を1つカウントする
+				}
+				++particleIterator;
 			}
 
 
