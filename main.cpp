@@ -46,6 +46,11 @@ struct Vector4 {
 	float w;
 };
 
+struct AABB {
+	Vector3 min;//最小点
+	Vector3 max;//最大点
+};
+
 //struct Matrix3x3 {
 //	float m[3][3];
 //};
@@ -114,12 +119,15 @@ struct Emitter {
 	float frequencyTime;
 };
 
+struct Acc {
+	Vector3 acc;//加速度
+	AABB area;//範囲
+};
+
 // スカラーとの乗算のオーバーロード
 Vector3 operator*(const Vector3& vec, float scalar) {
 	return { vec.x * scalar, vec.y * scalar, vec.z * scalar };
 }
-
-
 
 // Vector3同士の乗算（必要であれば定義）
 Vector3 operator*(const Vector3& vec1, const Vector3& vec2) {
@@ -801,6 +809,12 @@ std::list<Particle> Emit(const Emitter& emitter, std::mt19937& randomEngine) {
 	return particles;
 }
 
+bool IsCollision(const AABB& aabb, const Vector3& point) {
+	return (point.x >= aabb.min.x && point.x <= aabb.max.x) &&
+		(point.y >= aabb.min.y && point.y <= aabb.max.y) &&
+		(point.z >= aabb.min.z && point.z <= aabb.max.z);
+}
+
 //Transform変数を作る
 Transform transform{ {1.0f,1.0f,1.0f},{0.0f,0.0f,0.0f},{0.0f,0.0f,0.0f} };
 Transform cameraTransform{ {1.0f,1.0f,1.0f},{std::numbers::pi_v<float> / 3.0f,std::numbers::pi_v<float>,0.0f} ,{0.0f,23.0f,10.0f} };
@@ -1459,8 +1473,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	emitter.transform.rotate = { 0.0f,0.0f,0.0f };
 	emitter.transform.scale = { 1.0f,1.0f,1.0f };
 
+	Acc acc;
+	acc.acc = { 15.0f,0.0f,0.0f };
+	acc.area.min = { -1.0f,-1.00f,-1.0f };
+	acc.area.max = { 1.0f,1.0f,1.0f };
+
 	for (std::list<Particle>::iterator particleIterator = particles.begin(); particleIterator != particles.end(); ++particleIterator) {
-		(*particleIterator) = MakeNewParticle(randomEngine, emitter.transform.translate);	
+		(*particleIterator) = MakeNewParticle(randomEngine, emitter.transform.translate);
 		(*particleIterator).color = (*particleIterator).color;
 	}
 
@@ -1655,6 +1674,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 				Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
 				Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
 				if (numInstance < kNumMaxInstance) {
+					//フィールドの範囲内のParticleには加速度を適用する
+					if (IsCollision(acc.area, (*particleIterator).transform.translate)) {
+						(*particleIterator).velocity += acc.acc * kDeltaTime;
+					}
 					(*particleIterator).transform.translate += (*particleIterator).velocity * kDeltaTime;
 					(*particleIterator).currentTime += kDeltaTime;//経過時間を足す
 					instancingData[numInstance].wvp = worldViewProjectionMatrix;
