@@ -1437,7 +1437,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	device->CreateDepthStencilView(depthStencilResource.Get(), &dsvDesc, dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
 	//Instancing用のResources
-	const uint32_t kNumMaxInstance = 100;	//インスタンス数
+	const uint32_t kNumMaxInstance = 300;	//インスタンス数
 	//Instancing用のTransformationMatrixResourcesを作る
 	Microsoft::WRL::ComPtr<ID3D12Resource> instancingResource = CreateBufferResource(device.Get(), sizeof(ParticleForGPU) * kNumMaxInstance);
 	//書き込むためのアドレスを取得
@@ -1474,7 +1474,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	emitter.transform.scale = { 1.0f,1.0f,1.0f };
 
 	Acc acc;
-	acc.acc = { 15.0f,0.0f,0.0f };
+	acc.acc = { 0.0f,0.0f,0.0f };
 	acc.area.min = { -1.0f,-1.00f,-1.0f };
 	acc.area.max = { 1.0f,1.0f,1.0f };
 
