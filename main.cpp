@@ -1238,7 +1238,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	modelData.vertices.push_back({ .position = {1.0f,-1.0f,0.0f,1.0f},.texcoord = {0.0f,1.0f},.normal = {0.0f,0.0f,1.0f} });
 	modelData.vertices.push_back({ .position = {-1.0f,1.0f,0.0f,1.0f},.texcoord = {1.0f,0.0f},.normal = {0.0f,0.0f,1.0f} });
 	modelData.vertices.push_back({ .position = {-1.0f,-1.0f,0.0f,1.0f},.texcoord = {1.0f,1.0f},.normal = {0.0f,0.0f,1.0f} });
-	modelData.material.textureFilePath = "./resources/circle.png";
+	modelData.material.textureFilePath = "./resources/space.png";
 	//頂点リソースを作る
 	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResource = CreateBufferResource(device.Get(), sizeof(VertexData) * modelData.vertices.size());
 	//頂点バッファビューを作成する
@@ -1251,7 +1251,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//書き込むためのアドレスを取得
 	vertexResource->Map(0, nullptr, reinterpret_cast<void**>(&vertexData));
 	std::memcpy(vertexData, modelData.vertices.data(), sizeof(VertexData) * modelData.vertices.size());
-
 	//Sprite用の頂点リソースを作る
 	Microsoft::WRL::ComPtr<ID3D12Resource> vertexResourceSprite = CreateBufferResource(device.Get(), sizeof(VertexData) * 6);
 	//頂点バッファビューを作成する
@@ -1437,7 +1436,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	device->CreateDepthStencilView(depthStencilResource.Get(), &dsvDesc, dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
 	//Instancing用のResources
-	const uint32_t kNumMaxInstance = 100;	//インスタンス数
+	const uint32_t kNumMaxInstance = 300;	//インスタンス数
 	//Instancing用のTransformationMatrixResourcesを作る
 	Microsoft::WRL::ComPtr<ID3D12Resource> instancingResource = CreateBufferResource(device.Get(), sizeof(ParticleForGPU) * kNumMaxInstance);
 	//書き込むためのアドレスを取得
@@ -1661,35 +1660,63 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			}
 
 			uint32_t numInstance = 0;//描画すべきインスタンス数
-			for (std::list<Particle>::iterator particleIterator = particles.begin(); particleIterator != particles.end();) {
-				if ((*particleIterator).lifeTime <= (*particleIterator).currentTime) {//生存期間を過ぎていたら更新せず描画対象にしない
-					particleIterator = particles.erase(particleIterator);
-					continue;
-				}
-				Matrix4x4 scaleMatrix = MakeScaleMatrix((*particleIterator).transform.scale);
-				Matrix4x4 translateMatrix = MakeTranslateMatrix((*particleIterator).transform.translate);
-				Matrix4x4 worldMatrix = scaleMatrix * billboardMatrix * translateMatrix;
-				Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
-				Matrix4x4 viewMatrix = Inverse(cameraMatrix);
-				Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
-				Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
-				if (numInstance < kNumMaxInstance) {
-					//フィールドの範囲内のParticleには加速度を適用する
-					if (IsCollision(acc.area, (*particleIterator).transform.translate)) {
-						(*particleIterator).velocity += acc.acc * kDeltaTime;
+
+			// F1キーが押されているか確認
+			if (GetAsyncKeyState(VK_F1) & 0x8000) {
+				for (std::list<Particle>::iterator particleIterator = particles.begin(); particleIterator != particles.end();) {
+					if ((*particleIterator).lifeTime <= (*particleIterator).currentTime) {//生存期間を過ぎていたら更新せず描画対象にしない
+						particleIterator = particles.erase(particleIterator);
+						continue;
 					}
-					(*particleIterator).transform.translate += (*particleIterator).velocity * kDeltaTime;
-					(*particleIterator).currentTime += kDeltaTime;//経過時間を足す
-					instancingData[numInstance].wvp = worldViewProjectionMatrix;
-					instancingData[numInstance].World = worldMatrix;
-					instancingData[numInstance].color = (*particleIterator).color;
-					float alpha = 1.0f - ((*particleIterator).currentTime / (*particleIterator).lifeTime);
-					instancingData[numInstance].color.w = alpha;
-					instancingData[numInstance].wvp = worldViewProjectionMatrix;
-					++numInstance;//生きているParticleの数を1つカウントする
+					Matrix4x4 scaleMatrix = MakeScaleMatrix((*particleIterator).transform.scale);
+					Matrix4x4 translateMatrix = MakeTranslateMatrix((*particleIterator).transform.translate);
+					Matrix4x4 worldMatrix = scaleMatrix * billboardMatrix * translateMatrix;
+					Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
+					Matrix4x4 viewMatrix = Inverse(cameraMatrix);
+					Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClientWidth) / float(kClientHeight), 0.1f, 100.0f);
+					Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
+					if (numInstance < kNumMaxInstance) {
+						//フィールドの範囲内のParticleには加速度を適用する
+						if (IsCollision(acc.area, (*particleIterator).transform.translate)) {
+							(*particleIterator).velocity += acc.acc * kDeltaTime;
+						}
+						(*particleIterator).transform.translate += (*particleIterator).velocity * kDeltaTime;
+						(*particleIterator).currentTime += kDeltaTime;//経過時間を足す
+						instancingData[numInstance].wvp = worldViewProjectionMatrix;
+						instancingData[numInstance].World = worldMatrix;
+						instancingData[numInstance].color = (*particleIterator).color;
+						float alpha = 1.0f - ((*particleIterator).currentTime / (*particleIterator).lifeTime);
+						instancingData[numInstance].color.w = alpha;
+						instancingData[numInstance].wvp = worldViewProjectionMatrix;
+						++numInstance;//生きているParticleの数を1つカウントする
+					}
+					++particleIterator;
 				}
-				++particleIterator;
 			}
+
+			// パーティクル更新処理の例
+			if (GetAsyncKeyState(VK_F2)) {
+				for (auto& particle : particles) {
+					// スパイラルの動き (速度に円運動を加える)
+					float angle = particle.currentTime * 2.0f * std::numbers::pi_v<float>; // 回転速度
+					float radius = 5.0f * (1.0f - particle.currentTime / particle.lifeTime); // 半径を縮める
+
+					// 円運動の計算
+					particle.velocity.x = radius * cos(angle);
+					particle.velocity.y = radius * sin(angle);
+					particle.velocity.z += 0.1f; // ゆっくりと上昇
+
+					// 位置を更新
+					particle.transform.translate += particle.velocity * kDeltaTime;
+
+					// 時間を進める
+					particle.currentTime += kDeltaTime;
+
+					// 色を徐々に変化させる (例: フェードアウト)
+					particle.color.w = 1.0f - (particle.currentTime / particle.lifeTime);
+				}
+			}
+
 
 
 			//これから書き込むバックバッファのインデックスを取得	
@@ -1747,7 +1774,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 			commandList->SetGraphicsRootConstantBufferView(3, materialResourceLight->GetGPUVirtualAddress());
 
-			commandList->DrawInstanced(UINT(modelData.vertices.size()), numInstance, 0, 0);
+			// F1キーが押されているか確認
+			if (GetAsyncKeyState(VK_F1) & 0x8000) {
+				commandList->DrawInstanced(UINT(modelData.vertices.size()), numInstance, 0, 0);
+			}
+
+
 
 			////Spriteを常にuvCheckerにする
 			//commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
