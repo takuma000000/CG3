@@ -1791,23 +1791,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 			commandList->DrawInstanced(UINT(modelData.vertices.size()), numInstance, 0, 0);
-			commandList->DrawInstanced(static_cast<UINT>(modelDataPlane.vertices.size()), 1, 0, 0);
-
-			// トポロジを設定
-			commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-			// 頂点バッファを設定
-			commandList->IASetVertexBuffers(0, 1, &vertexBufferViewPlane);
-
-			// 必要に応じてルートシグネチャやパイプラインステートを設定
-			commandList->SetPipelineState(graphicsPipelineState.Get());
-			commandList->SetGraphicsRootSignature(rootSignature.Get());
-
-			// 必要なリソース (例えば、定数バッファやテクスチャ) をバインド
-			commandList->SetGraphicsRootDescriptorTable(0, srvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+			//commandList->DrawInstanced(static_cast<UINT>(modelDataPlane.vertices.size()), 1, 0, 0);
 
 			// 平面モデルの描画コマンド
-			commandList->DrawInstanced(static_cast<UINT>(modelDataPlane.vertices.size()), 1, 0, 0);
+			//commandList->DrawInstanced(static_cast<UINT>(modelDataPlane.vertices.size()), 1, 0, 0);
 
 
 
