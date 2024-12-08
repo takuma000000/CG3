@@ -1517,6 +1517,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	);
 
 
+
 	MSG msg{};
 	//ウィンドウの×ボタンが押されるまでループ
 	while (msg.message != WM_QUIT) {
@@ -1584,7 +1585,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 				ImGui::BeginGroup(); // グループ開始
 
 				ImGui::Text("useBillboard");
-				ImGui::Checkbox("useBillboard", &useBillboard);
+				ImGui::Checkbox("Use Billboard", &useBillboard);
 
 				ImGui::EndGroup(); // グループ終了
 			}
