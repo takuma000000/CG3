@@ -72,6 +72,7 @@ struct Material {
 struct TransformationMatrix {
 	Matrix4x4 wvp;
 	Matrix4x4 World;
+	Matrix4x4 WorldInvTranspose;
 };
 
 struct DirectionalLight {
@@ -1186,6 +1187,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	wvpResource->Map(0, nullptr, reinterpret_cast<void**>(&wvpData));
 	//単位行列を書き込んでおく
 	wvpData->wvp = MakeIdentity4x4();
+	wvpData->WorldInvTranspose = MakeIdentity4x4();
 
 
 	ID3D12Resource* cameraResource = CreateBufferResource(device, sizeof(CameraForGPU));
@@ -1345,6 +1347,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			ImGui::Begin("Setting");
 			// ColorEdit3を使用して色を選択
 			//ImGui::ColorEdit3("Color", &materialData->x);
+
+			ImGui::DragFloat3("Transform", &transform.translate.x, 0.01f);
+			ImGui::DragFloat3("Rotate", &transform.rotate.x, 0.01f);
+			ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f);
 			ImGui::DragFloat3("CameraTransform", &cameraTransform.translate.x, 0.01f);
 			ImGui::DragFloat3("cameraRotate", &cameraTransform.rotate.x, 0.01f);
 			ImGui::Checkbox("useMonsterBall", &useMonsterBall);
