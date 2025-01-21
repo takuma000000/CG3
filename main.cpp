@@ -1187,6 +1187,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	wvpResource->Map(0, nullptr, reinterpret_cast<void**>(&wvpData));
 	//単位行列を書き込んでおく
 	wvpData->wvp = MakeIdentity4x4();
+	//法線変換用のリソースを作る。Matrix4x4 1つ分のサイズを用意する
 	wvpData->WorldInvTranspose = MakeIdentity4x4();
 
 
