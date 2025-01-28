@@ -81,6 +81,12 @@ struct DirectionalLight {
 	float intensity;
 };
 
+struct PointLight {
+	Vector4 color;
+	Vector3 position;
+	float intensity;
+};
+
 struct CameraForGPU
 {
 	Vector3 worldPosition;
